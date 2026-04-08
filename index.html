@@ -13,12 +13,6 @@
 <div id="setup-screen" class="screen active">
   <h1>Word Grid Duel</h1>
 
-  <div class="rules">
-    <p>Alternate placing letters of a 3-letter word.</p>
-    <p>Complete the word in any straight line to win.</p>
-    <p>You can play vs Player or AI.</p>
-  </div>
-
   <input id="word-input" type="text" maxlength="3" placeholder="Enter 3-letter word">
 
   <select id="grid-size">
@@ -33,6 +27,13 @@
   <select id="mode">
     <option value="pvp">Player vs Player</option>
     <option value="ai">Player vs AI</option>
+  </select>
+
+  <select id="difficulty">
+    <option value="easy">Easy</option>
+    <option value="medium">Medium</option>
+    <option value="hard">Hard</option>
+    <option value="unbeatable">Unbeatable</option>
   </select>
 
   <button id="start-btn">Start Game</button>
