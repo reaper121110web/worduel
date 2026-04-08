@@ -7,8 +7,6 @@ let player=1, turn=0, active=true;
 let mode="pvp", difficulty="easy";
 let score={1:0,2:0};
 
-let TT = new Map();
-
 /* START */
 document.getElementById("start-btn").onclick=()=>{
   const input=document.getElementById("word-input").value.toUpperCase();
@@ -32,7 +30,6 @@ function init(){
   gridEl.style.gridTemplateColumns=`repeat(${size},1fr)`;
 
   player=1; turn=0; active=true;
-  TT.clear();
 
   document.getElementById("winner-display").textContent="";
   updateScore();
@@ -52,9 +49,9 @@ function init(){
 function move(r,c,cell){
   if(!active || board[r][c]) return;
 
-  placeMove(r,c,cell);
+  placeMove(r,c,cell,turn);
 
-  if(checkWin()){
+  if(checkWin(board)){
     endGame();
     return;
   }
@@ -67,8 +64,8 @@ function move(r,c,cell){
 }
 
 /* PLACE */
-function placeMove(r,c,cell){
-  const letter=word[turn%3];
+function placeMove(r,c,cell,t){
+  const letter=word[t%3];
   board[r][c]=letter;
 
   const el = cell || gridEl.children[r*size+c];
@@ -81,148 +78,140 @@ function aiMove(){
   let move;
 
   if(difficulty==="easy") move=randomMove();
-  else if(difficulty==="medium") move=blockOrRandom();
+  else if(difficulty==="medium") move=randomMove();
   else if(difficulty==="hard") move=minimaxRoot(4);
-  else move=perfectMove(); // TRUE PERFECT
+  else move=perfectMove(); // fixed
 
   if(move){
-    placeMove(move.r,move.c);
-    if(checkWin()){ endGame(); return;}
+    placeMove(move.r,move.c,null,turn);
+    if(checkWin(board)){ endGame(); return;}
     nextTurn();
   }
 }
 
-/* PERFECT SEARCH (NO DEPTH LIMIT) */
+/* PERFECT */
 function perfectMove(){
   let best=-Infinity;
   let bestMove=null;
 
-  let moves=getCandidateMoves();
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!board[r][c]){
 
-  for(let m of moves){
-    board[m.r][m.c]=word[turn%3];
+        board[r][c]=word[turn%3];
 
-    let val=minimaxFull(false,-Infinity,Infinity);
+        let val=minimaxFull(board,turn+1,false);
 
-    board[m.r][m.c]="";
+        board[r][c]="";
 
-    if(val>best){
-      best=val;
-      bestMove=m;
+        if(val>best){
+          best=val;
+          bestMove={r,c};
+        }
+      }
     }
   }
-
   return bestMove;
 }
 
-/* FULL MINIMAX (NO DEPTH LIMIT) */
-function minimaxFull(isMax,alpha,beta){
-  let key = board.flat().join("") + turn;
-  if(TT.has(key)) return TT.get(key);
-
-  if(checkWin()){
+/* TRUE MINIMAX */
+function minimaxFull(b,t,isMax){
+  if(checkWin(b)){
     return isMax ? -1000 : 1000;
   }
 
-  if(isBoardFull()){
-    return 0;
-  }
+  if(isFull(b)) return 0;
 
   let best=isMax?-Infinity:Infinity;
-  let moves=getCandidateMoves();
 
-  for(let m of moves){
-    board[m.r][m.c]=word[(turn + moves.length)%3];
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!b[r][c]){
 
-    let val=minimaxFull(!isMax,alpha,beta);
+        b[r][c]=word[t%3];
 
-    board[m.r][m.c]="";
+        let val=minimaxFull(b,t+1,!isMax);
 
-    if(isMax){
-      best=Math.max(best,val);
-      alpha=Math.max(alpha,val);
-    }else{
-      best=Math.min(best,val);
-      beta=Math.min(beta,val);
+        b[r][c]="";
+
+        if(isMax){
+          best=Math.max(best,val);
+        }else{
+          best=Math.min(best,val);
+        }
+      }
     }
-
-    if(beta<=alpha) break;
   }
 
-  TT.set(key,best);
   return best;
 }
 
-/* HARD MODE */
+/* HARD */
 function minimaxRoot(depth){
   let best=-Infinity, move=null;
-  let moves=getCandidateMoves();
 
-  for(let m of moves){
-    board[m.r][m.c]=word[turn%3];
-    let val=minimax(depth-1,false,-Infinity,Infinity);
-    board[m.r][m.c]="";
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!board[r][c]){
 
-    if(val>best){
-      best=val;
-      move=m;
+        board[r][c]=word[turn%3];
+
+        let val=minimax(board,turn+1,depth-1,false);
+
+        board[r][c]="";
+
+        if(val>best){
+          best=val;
+          move={r,c};
+        }
+      }
     }
   }
   return move;
 }
 
-function minimax(depth,isMax,alpha,beta){
-  if(checkWin()) return isMax ? -100 : 100;
+function minimax(b,t,depth,isMax){
+  if(checkWin(b)) return isMax?-100:100;
   if(depth===0) return 0;
 
   let best=isMax?-Infinity:Infinity;
-  let moves=getCandidateMoves();
 
-  for(let m of moves){
-    board[m.r][m.c]=word[(turn+depth)%3];
-    let val=minimax(depth-1,!isMax,alpha,beta);
-    board[m.r][m.c]="";
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!b[r][c]){
 
-    if(isMax){
-      best=Math.max(best,val);
-      alpha=Math.max(alpha,val);
-    }else{
-      best=Math.min(best,val);
-      beta=Math.min(beta,val);
+        b[r][c]=word[t%3];
+
+        let val=minimax(b,t+1,depth-1,!isMax);
+
+        b[r][c]="";
+
+        if(isMax) best=Math.max(best,val);
+        else best=Math.min(best,val);
+      }
     }
-
-    if(beta<=alpha) break;
   }
   return best;
 }
 
 /* HELPERS */
-function getCandidateMoves(){
-  let moves=[];
+function isFull(b){
   for(let r=0;r<size;r++){
     for(let c=0;c<size;c++){
-      if(!board[r][c]) moves.push({r,c});
-    }
-  }
-  return moves;
-}
-
-function isBoardFull(){
-  for(let r=0;r<size;r++){
-    for(let c=0;c<size;c++){
-      if(!board[r][c]) return false;
+      if(!b[r][c]) return false;
     }
   }
   return true;
 }
 
 function randomMove(){
-  let empty=getCandidateMoves();
+  let empty=[];
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!board[r][c]) empty.push({r,c});
+    }
+  }
   return empty[Math.floor(Math.random()*empty.length)];
-}
-
-function blockOrRandom(){
-  return randomMove();
 }
 
 /* TURN */
@@ -244,7 +233,7 @@ function updateScore(){
 }
 
 /* WIN */
-function checkWin(){
+function checkWin(b){
   const dirs=[[0,1],[1,0],[1,1],[1,-1]];
 
   for(let r=0;r<size;r++){
@@ -254,7 +243,7 @@ function checkWin(){
         for(let i=0;i<3;i++){
           let nr=r+dr*i,nc=c+dc*i;
           if(nr<0||nc<0||nr>=size||nc>=size) break;
-          seq.push(board[nr][nc]);
+          seq.push(b[nr][nc]);
         }
         if(seq.length===3){
           let s=seq.join("");
