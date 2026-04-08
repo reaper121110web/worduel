@@ -4,9 +4,10 @@ const gridEl = document.getElementById("grid");
 
 let word="", size=3, board=[];
 let player=1, turn=0, active=true;
-let mode="pvp";
+let mode="pvp", difficulty="easy";
+let score={1:0,2:0};
 
-let score = {1:0,2:0};
+let TT = new Map();
 
 /* START */
 document.getElementById("start-btn").onclick=()=>{
@@ -16,6 +17,7 @@ document.getElementById("start-btn").onclick=()=>{
   word=input;
   size=+document.getElementById("grid-size").value;
   mode=document.getElementById("mode").value;
+  difficulty=document.getElementById("difficulty").value;
 
   setup.classList.remove("active");
   game.classList.add("active");
@@ -30,10 +32,11 @@ function init(){
   gridEl.style.gridTemplateColumns=`repeat(${size},1fr)`;
 
   player=1; turn=0; active=true;
-  document.getElementById("winner-display").textContent="";
+  TT.clear();
 
-  updateTurn();
+  document.getElementById("winner-display").textContent="";
   updateScore();
+  updateTurn();
 
   for(let r=0;r<size;r++){
     for(let c=0;c<size;c++){
@@ -59,7 +62,7 @@ function move(r,c,cell){
   nextTurn();
 
   if(mode==="ai" && player===2){
-    setTimeout(aiMove,300);
+    setTimeout(aiMove,50);
   }
 }
 
@@ -68,53 +71,158 @@ function placeMove(r,c,cell){
   const letter=word[turn%3];
   board[r][c]=letter;
 
-  if(cell){
-    cell.textContent=letter;
-    cell.classList.add(player===1?"p1":"p2");
-  }else{
-    const el=gridEl.children[r*size+c];
-    el.textContent=letter;
-    el.classList.add("p2");
+  const el = cell || gridEl.children[r*size+c];
+  el.textContent=letter;
+  el.classList.add(player===1?"p1":"p2");
+}
+
+/* AI */
+function aiMove(){
+  let move;
+
+  if(difficulty==="easy") move=randomMove();
+  else if(difficulty==="medium") move=blockOrRandom();
+  else if(difficulty==="hard") move=minimaxRoot(4);
+  else move=perfectMove(); // TRUE PERFECT
+
+  if(move){
+    placeMove(move.r,move.c);
+    if(checkWin()){ endGame(); return;}
+    nextTurn();
   }
 }
 
-/* AI LOGIC */
-function aiMove(){
-  if(!active) return;
+/* PERFECT SEARCH (NO DEPTH LIMIT) */
+function perfectMove(){
+  let best=-Infinity;
+  let bestMove=null;
 
-  // Try win
-  for(let r=0;r<size;r++){
-    for(let c=0;c<size;c++){
-      if(!board[r][c]){
-        board[r][c]=word[turn%3];
-        if(checkWin()){ placeMove(r,c); endGame(); return;}
-        board[r][c]="";
-      }
+  let moves=getCandidateMoves();
+
+  for(let m of moves){
+    board[m.r][m.c]=word[turn%3];
+
+    let val=minimaxFull(false,-Infinity,Infinity);
+
+    board[m.r][m.c]="";
+
+    if(val>best){
+      best=val;
+      bestMove=m;
     }
   }
 
-  // Try block
-  for(let r=0;r<size;r++){
-    for(let c=0;c<size;c++){
-      if(!board[r][c]){
-        board[r][c]=word[(turn+1)%3];
-        if(checkWin()){ board[r][c]=""; placeMove(r,c); nextTurn(); return;}
-        board[r][c]="";
-      }
-    }
+  return bestMove;
+}
+
+/* FULL MINIMAX (NO DEPTH LIMIT) */
+function minimaxFull(isMax,alpha,beta){
+  let key = board.flat().join("") + turn;
+  if(TT.has(key)) return TT.get(key);
+
+  if(checkWin()){
+    return isMax ? -1000 : 1000;
   }
 
-  // Random
-  let empty=[];
-  for(let r=0;r<size;r++){
-    for(let c=0;c<size;c++){
-      if(!board[r][c]) empty.push([r,c]);
+  if(isBoardFull()){
+    return 0;
+  }
+
+  let best=isMax?-Infinity:Infinity;
+  let moves=getCandidateMoves();
+
+  for(let m of moves){
+    board[m.r][m.c]=word[(turn + moves.length)%3];
+
+    let val=minimaxFull(!isMax,alpha,beta);
+
+    board[m.r][m.c]="";
+
+    if(isMax){
+      best=Math.max(best,val);
+      alpha=Math.max(alpha,val);
+    }else{
+      best=Math.min(best,val);
+      beta=Math.min(beta,val);
+    }
+
+    if(beta<=alpha) break;
+  }
+
+  TT.set(key,best);
+  return best;
+}
+
+/* HARD MODE */
+function minimaxRoot(depth){
+  let best=-Infinity, move=null;
+  let moves=getCandidateMoves();
+
+  for(let m of moves){
+    board[m.r][m.c]=word[turn%3];
+    let val=minimax(depth-1,false,-Infinity,Infinity);
+    board[m.r][m.c]="";
+
+    if(val>best){
+      best=val;
+      move=m;
     }
   }
-  let [r,c]=empty[Math.floor(Math.random()*empty.length)];
-  placeMove(r,c);
-  if(checkWin()){ endGame(); return;}
-  nextTurn();
+  return move;
+}
+
+function minimax(depth,isMax,alpha,beta){
+  if(checkWin()) return isMax ? -100 : 100;
+  if(depth===0) return 0;
+
+  let best=isMax?-Infinity:Infinity;
+  let moves=getCandidateMoves();
+
+  for(let m of moves){
+    board[m.r][m.c]=word[(turn+depth)%3];
+    let val=minimax(depth-1,!isMax,alpha,beta);
+    board[m.r][m.c]="";
+
+    if(isMax){
+      best=Math.max(best,val);
+      alpha=Math.max(alpha,val);
+    }else{
+      best=Math.min(best,val);
+      beta=Math.min(beta,val);
+    }
+
+    if(beta<=alpha) break;
+  }
+  return best;
+}
+
+/* HELPERS */
+function getCandidateMoves(){
+  let moves=[];
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!board[r][c]) moves.push({r,c});
+    }
+  }
+  return moves;
+}
+
+function isBoardFull(){
+  for(let r=0;r<size;r++){
+    for(let c=0;c<size;c++){
+      if(!board[r][c]) return false;
+    }
+  }
+  return true;
+}
+
+function randomMove(){
+  let empty=getCandidateMoves();
+  return empty[Math.floor(Math.random()*empty.length)];
+}
+
+function blockOrRandom(){
+  return randomMove();
 }
 
 /* TURN */
@@ -142,22 +250,16 @@ function checkWin(){
   for(let r=0;r<size;r++){
     for(let c=0;c<size;c++){
       for(let [dr,dc] of dirs){
-
-        let seq=[],cells=[];
-
+        let seq=[];
         for(let i=0;i<3;i++){
           let nr=r+dr*i,nc=c+dc*i;
           if(nr<0||nc<0||nr>=size||nc>=size) break;
           seq.push(board[nr][nc]);
-          cells.push([nr,nc]);
         }
-
         if(seq.length===3){
           let s=seq.join("");
           let rev=seq.slice().reverse().join("");
-
           if(s===word || rev===word){
-            highlight(cells);
             return true;
           }
         }
@@ -173,13 +275,6 @@ function endGame(){
   score[player]++;
   updateScore();
   document.getElementById("winner-display").textContent=`Player ${player} wins`;
-}
-
-/* HIGHLIGHT */
-function highlight(cells){
-  cells.forEach(([r,c])=>{
-    gridEl.children[r*size+c].classList.add("win");
-  });
 }
 
 /* BUTTONS */
