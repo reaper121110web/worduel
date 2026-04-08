@@ -34,7 +34,6 @@ button {
   color: white;
   cursor: pointer;
 }
-button:hover { transform: scale(1.05); }
 
 #grid {
   display: grid;
@@ -63,14 +62,4 @@ button:hover { transform: scale(1.05); }
 @keyframes glow {
   from { box-shadow: 0 0 5px #d4af37; }
   to { box-shadow: 0 0 20px #d4af37; }
-}
-
-#scoreboard {
-  margin-bottom: 10px;
-  font-size: 14px;
-}
-
-#winner-display {
-  margin-top: 10px;
-  color: #d4af37;
 }
